@@ -8,16 +8,6 @@
 ADodgeGameMode::ADodgeGameMode(const class FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	/*static ConstructorHelpers::FObjectFinder<UBlueprint> PlayerPawnObject(TEXT("Blueprint'/Game/BluePrints/BP_Pellet.BP_Pellet'"));
-	if (PlayerPawnObject.Object)
-	{
-		DefaultPawnClass = (UClass*)PlayerPawnObject.Object->GeneratedClass;
-	}
-	static ConstructorHelpers::FObjectFinder<UBlueprint> GameHUDObject(TEXT("Blueprint'/Game/BluePrints/BP_GameHUD.BP_GameHUD'"));
-	if (GameHUDObject.Object)
-	{
-		HUDClass = (UClass*)GameHUDObject.Object->GeneratedClass;
-	}*/
 }
 
 void ADodgeGameMode::StartPlay()
@@ -32,14 +22,14 @@ void ADodgeGameMode::ChangeGameState(EPlayState newGameState)
 	gameState = newGameState;
 	if (newGameState == EPlayState::EGameOver)
 	{
-		EnablePelletSpawners(false);
+		GetSpawnController()->EnableSpawning(false);
 		DespawnAll();
 		DEBUG_INFO(FString(TEXT("Final Score: ")).Append(FString::FromInt(totalEnemies)));
 	}
 	else if (newGameState == EPlayState::EPlaying)
 	{
 		ResetGameState();
-		EnablePelletSpawners(true);
+		GetSpawnController()->EnableSpawning(true);
 		APlayerController *playerController = GetWorld()->GetFirstPlayerController();
 		if (!playerController)
 		{
@@ -82,16 +72,27 @@ void ADodgeGameMode::DespawnAll()
 	}
 }
 
-void ADodgeGameMode::EnablePelletSpawners(bool enable)
+int32 ADodgeGameMode::GetTotalEnemies()
 {
-	TArray<AActor*> allSpawners;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), APelletSpawner::StaticClass(), allSpawners);
-	for (auto spawner : allSpawners)
+	return totalEnemies;
+}
+
+EPlayState ADodgeGameMode::GetGameState()
+{
+	return gameState;
+}
+
+ASpawnController* ADodgeGameMode::GetSpawnController()
+{
+	if (!spawnController)
 	{
-		APelletSpawner *pelletSpawner = Cast<APelletSpawner>(spawner);
-		if (pelletSpawner)
+		TArray<AActor*> allSpawnControllers;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), ASpawnController::StaticClass(), allSpawnControllers);
+		for (int i = 0; i < allSpawnControllers.Num(); i++)
 		{
-			pelletSpawner->EnableSpawning(enable);
+			ASpawnController *castSpawnController = Cast<ASpawnController>(allSpawnControllers[i]);
+			if (castSpawnController) spawnController = castSpawnController;
 		}
 	}
+	return spawnController;
 }

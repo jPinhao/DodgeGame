@@ -3,6 +3,7 @@
 #pragma once
 
 #include "GameFramework/GameMode.h"
+#include "SpawnController.h"
 #include "DodgeGameMode.generated.h"
 
 UENUM(BlueprintType)
@@ -32,24 +33,14 @@ public:
 	int32 GetTotalEnemies();
 	UFUNCTION(BlueprintCallable, Category = GameState)
 	EPlayState GetGameState();
+	ASpawnController* GetSpawnController();
 
 private:
 	void ResetGameState();
-	void EnablePelletSpawners(bool active);
 	void DespawnAll();
 
+	ASpawnController *spawnController;
 	EPlayState gameState;
 	UPROPERTY(VisibleAnywhere, Category = GameState)
 	int32 totalEnemies;
 };
-
-
-FORCEINLINE int32 ADodgeGameMode::GetTotalEnemies()
-{
-	return totalEnemies;
-}
-
-FORCEINLINE EPlayState ADodgeGameMode::GetGameState()
-{ 
-	return gameState; 
-}

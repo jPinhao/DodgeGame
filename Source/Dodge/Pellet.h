@@ -34,8 +34,13 @@ public:
 private:
 	UPROPERTY(EditAnywhere, Category = BehaviourProperties)
 	float moveSpeed;
-	UPROPERTY(VisibleAnywhere, Category = BehaviourProperties)
 	FVector movementDirection;
+	UPROPERTY(EditAnywhere, Category = SpawnProperties)
+	float spawnDuration;
+	float spawnEnd;
+	bool bIsSpawning;
+	FVector fullSize;
+
 	bool bFollowPointer;
 	void StartTrackingPointer();
 	void StopTrackingPointer();

@@ -17,10 +17,11 @@ class DODGE_API APelletSpawner : public AActor
 
 public:
 	APelletSpawner(const FObjectInitializer& ObjectInitializer);
+	virtual void PostInitializeComponents() override;
 	virtual void BeginPlay() override;
-	void Tick(float deltaTime) override;
+	virtual void BeginDestroy() override;
 
-	void EnableSpawning(bool enable);
+	void SpawnPellet();
 
 private:
 	UPROPERTY(VisibleAnywhere, Category = ComponentStructure)
@@ -28,11 +29,8 @@ private:
 	UBoxComponent *spawnAreaComponent;
 	UPROPERTY(EditDefaultsOnly, Category = SpawnProperties)
 	TSubclassOf<APellet> spawnUnits;
-	UPROPERTY(EditAnywhere, Category = SpawnProperties)
-	float spawnRate;
 	UPROPERTY(EditInstanceOnly, Category = SpawnProperties)
 	FVector spawnDirection[4];
-	UPROPERTY(EditAnywhere, Category = SpawnProperties)
-	bool spawningEnabled;
-	float nextSpawn=1.f;
+	UPROPERTY(EditInstanceOnly, Category = SpawnProperties)
+	bool bCanEverSpawn;
 };

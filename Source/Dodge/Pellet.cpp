@@ -12,9 +12,6 @@ APellet::APellet(const FObjectInitializer& ObjectInitializer)
 	bFollowPointer = false;
 	if (moveSpeed == 0) moveSpeed = 1.f;
 	PawnMovement = ObjectInitializer.CreateDefaultSubobject<UFloatingPawnMovement>(this, TEXT("MovementComponent"));
-	
-	/*CapsuleComponent->SetNotifyRigidBodyCollision(true);
-	CapsuleComponent->OnComponentHit.AddDynamic(this, &AChaseBall::OnCollide);*/
 }
 
 /** after all game elements are created */
@@ -32,7 +29,13 @@ void APellet::PostInitializeComponents()
 	if (colisionComponent)
 	{
 		colisionComponent->OnComponentHit.AddDynamic(this, &APellet::OnColide);
+		colisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
+
+	spawnEnd = spawnDuration;
+	bIsSpawning = true;
+	fullSize = RootComponent->GetComponentScale();
+	RootComponent->SetWorldScale3D(FVector::ZeroVector);
 }
 
 void APellet::SetupPlayerInputComponent(class UInputComponent* InputComponent)
@@ -70,7 +73,29 @@ void APellet::StopTrackingPointerTouch(ETouchIndex::Type finger, FVector positio
 
 void APellet::Tick(float deltaTime)
 {
-	ChaseTarget(deltaTime);
+	if (spawnEnd > 0)
+	{
+		spawnEnd -= deltaTime;
+		if (spawnEnd <= 0)
+		{
+			RootComponent->SetWorldScale3D(fullSize);
+			bIsSpawning = false;
+			USphereComponent *colisionComponent = (USphereComponent*)FindComponentByClass(USphereComponent::StaticClass());
+			if (colisionComponent)
+			{
+				colisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+			}
+		}
+		else
+		{
+			FVector scaleIncrement = fullSize / spawnDuration * deltaTime;
+			FVector currentScale = RootComponent->GetComponentScale();
+			RootComponent->SetWorldScale3D(FVector(FMath::Min(currentScale.X + scaleIncrement.X, fullSize.X),
+				FMath::Min(currentScale.Y + scaleIncrement.Y, fullSize.Y), 
+				FMath::Min(currentScale.Z + scaleIncrement.Z, fullSize.Z)));
+		}
+	}
+	else ChaseTarget(deltaTime);
 }
 
 void APellet::ChaseTarget(float deltaTime)
@@ -140,8 +165,11 @@ bool APellet::SetMovementDirection(const FVector &movementDirection)
 	this->movementDirection = movementDirection;
 	this->movementDirection.X = 0;
 	this->movementDirection.Normalize();
-	PawnMovement->ConsumeInputVector();
-	AddMovementInput(this->movementDirection, moveSpeed);
+	if (!bIsSpawning)
+	{
+		PawnMovement->ConsumeInputVector();
+		AddMovementInput(this->movementDirection, moveSpeed);
+	}
 	return true;
 }
 

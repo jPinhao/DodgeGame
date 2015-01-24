@@ -3,6 +3,8 @@
 #include "Dodge.h"
 #include "PelletSpawner.h"
 #include "DodgeGameMode.h"
+#include "SpawnController.h"
+#include "Kismet/GameplayStatics.h"
 
 APelletSpawner::APelletSpawner(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -12,15 +14,38 @@ APelletSpawner::APelletSpawner(const FObjectInitializer& ObjectInitializer)
 	{
 		SetRootComponent(spriteComponent);
 	}
+}
 
-	PrimaryActorTick.bCanEverTick = true;
-	EnableSpawning(false);
+void APelletSpawner::BeginDestroy()
+{
+	//unregister ourselves from the gameMode
+	UWorld *world = GetWorld();
+	if (world)
+	{
+		AGameMode *gameMode = UGameplayStatics::GetGameMode(world);
+		if (gameMode)
+		{
+			ADodgeGameMode *castGameMode = Cast<ADodgeGameMode>(gameMode);
+			if (castGameMode)
+			{
+				ASpawnController *controller = castGameMode->GetSpawnController();
+				controller->UnRegisterSpawner(this);
+			}
+		}
+	}
+
+	Super::BeginDestroy();
+}
+
+void APelletSpawner::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	spawnAreaComponent = Cast<UBoxComponent>(GetComponentByClass(UBoxComponent::StaticClass()));
 }
 
 void APelletSpawner::BeginPlay()
 {
 	Super::BeginPlay();
-	spawnAreaComponent = Cast<UBoxComponent>(GetComponentByClass(UBoxComponent::StaticClass()));
 	//resize spawnArea to fit within other PelletSpawners and force spawning inside the box
 	FVector extent, centre, rotatedExtent;
 
@@ -49,56 +74,49 @@ void APelletSpawner::BeginPlay()
 	//and use the new extent to calculate the new scale
 	spawnAreaComponent->SetWorldScale3D(extent / spawnAreaComponent->GetPlacementExtent().BoxExtent);
 	spawnAreaComponent->SetWorldLocation(centre);
-}
 
-void APelletSpawner::EnableSpawning(bool enable)
-{
-	spawningEnabled = enable;
-	if (spawningEnabled)
+	//register ourselves into the spawncontroller
+	if (bCanEverSpawn)
 	{
-		nextSpawn = 0;
-		SetActorTickEnabled(true);
-	}
-	else SetActorTickEnabled(false);
-}
-
-void APelletSpawner::Tick(float deltaTime)
-{
-	if (spawningEnabled == false) return;
-	nextSpawn -= deltaTime;
-	if (nextSpawn <= 0)
-	{
-		nextSpawn = spawnRate;
-
-		FVector centre, extent, spawnPoint, thrustVector;
-		FRotator thrustRotation;
-		float spawnAngle = FMath::RandRange(-80, 80);
-		float x = 0.f, y = 0.f, z = 0.f;
-
-		extent = spawnAreaComponent->GetPlacementExtent().BoxExtent * spawnAreaComponent->GetComponentScale();
-		centre = spawnAreaComponent->GetComponentLocation();
-
-		//randomize Z position; make X/Y the edge of the component so the pellets spawn outside 
-		z = FMath::RandRange(-extent.Z, extent.Z);
-		x = spawnDirection[0].X * extent.X;
-		y = spawnDirection[0].Y * extent.Y;
-		//apply component's rotation to our desired spawn point and add to centre point
-		spawnPoint = centre + spawnAreaComponent->GetComponentQuat().RotateVector(FVector(x, y, z));
-		//apply component's rotation + our random angle to get thrust angle
-		thrustRotation = FRotator(spawnAreaComponent->GetComponentQuat() * FQuat(FVector(0, 1, 0), FMath::DegreesToRadians(spawnAngle)));
-		thrustVector = thrustRotation.Vector();
-
-		APellet *newPellet = GetWorld()->SpawnActor<APellet>(spawnUnits->GetDefaultObject()->GetClass(), spawnPoint, FRotator(0.f, 0.f, 0.f));
-		if (newPellet)
+		ADodgeGameMode *gameMode = Cast<ADodgeGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+		if (gameMode)
 		{
-			newPellet->SpawnDefaultController();
-			newPellet->SetMovementDirection(thrustVector);
+			ASpawnController *controller = gameMode->GetSpawnController();
+			controller->RegisterSpawner(this);
+		}
+	}
+}
 
-			ADodgeGameMode *gameMode = Cast<ADodgeGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
-			if (gameMode)
-			{
-				gameMode->IncrementScoreTotalEnemyCount();
-			}
+void APelletSpawner::SpawnPellet()
+{
+	FVector centre, extent, spawnPoint, thrustVector;
+	FRotator thrustRotation;
+	float spawnAngle = FMath::RandRange(-80, 80);
+	float x = 0.f, y = 0.f, z = 0.f;
+
+	extent = spawnAreaComponent->GetPlacementExtent().BoxExtent * spawnAreaComponent->GetComponentScale();
+	centre = spawnAreaComponent->GetComponentLocation();
+
+	//randomize Z position; make X/Y the edge of the component so the pellets spawn outside 
+	z = FMath::RandRange(-extent.Z, extent.Z);
+	x = spawnDirection[0].X * extent.X;
+	y = spawnDirection[0].Y * extent.Y;
+	//apply component's rotation to our desired spawn point and add to centre point
+	spawnPoint = centre + spawnAreaComponent->GetComponentQuat().RotateVector(FVector(x, y, z));
+	//apply component's rotation + our random angle to get thrust angle
+	thrustRotation = FRotator(spawnAreaComponent->GetComponentQuat() * FQuat(FVector(0, 1, 0), FMath::DegreesToRadians(spawnAngle)));
+	thrustVector = thrustRotation.Vector();
+
+	APellet *newPellet = GetWorld()->SpawnActor<APellet>(spawnUnits->GetDefaultObject()->GetClass(), spawnPoint, FRotator(0.f, 0.f, 0.f));
+	if (newPellet)
+	{
+		newPellet->SpawnDefaultController();
+		newPellet->SetMovementDirection(thrustVector);
+
+		ADodgeGameMode *gameMode = Cast<ADodgeGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
+		if (gameMode)
+		{
+			gameMode->IncrementScoreTotalEnemyCount();
 		}
 	}
 }
