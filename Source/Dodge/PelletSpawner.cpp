@@ -52,8 +52,8 @@ void APelletSpawner::BeginPlay()
 	//get the current component centre and extent
 	extent = spawnAreaComponent->GetPlacementExtent().BoxExtent * spawnAreaComponent->GetComponentScale();
 	centre = spawnAreaComponent->GetComponentLocation();
-	//transform the extent to get a vector with the current component orientation (keep only Z component, that's the only relevant scaled axis)
-	rotatedExtent = spawnAreaComponent->GetComponentQuat().RotateVector(extent*FVector(0, 0, 1));
+	//transform the extent to get a vector with the current component orientation (keep only X component, that's the only relevant scaled axis)
+	rotatedExtent = spawnAreaComponent->GetComponentQuat().RotateVector(extent*FVector(1, 0, 0));
 
 	//check for colisions between spawn component centre and extremeties
 	FVector posEdge = centre + rotatedExtent, negEdge = centre - rotatedExtent;
@@ -70,7 +70,7 @@ void APelletSpawner::BeginPlay()
 	//desired new extent and component centre
 	rotatedExtent = (posEdge - negEdge) / 2;
 	centre = posEdge - rotatedExtent;
-	extent.Z = spawnAreaComponent->GetComponentQuat().Inverse().RotateVector(rotatedExtent).Z;
+	extent.X = spawnAreaComponent->GetComponentQuat().Inverse().RotateVector(rotatedExtent).X;
 	//and use the new extent to calculate the new scale
 	spawnAreaComponent->SetWorldScale3D(extent / spawnAreaComponent->GetPlacementExtent().BoxExtent);
 	spawnAreaComponent->SetWorldLocation(centre);
@@ -91,21 +91,22 @@ void APelletSpawner::SpawnPellet()
 {
 	FVector centre, extent, spawnPoint, thrustVector;
 	FRotator thrustRotation;
-	float spawnAngle = FMath::RandRange(-80, 80);
+	float spawnAngle = FMath::RandRange(10, 170);
 	float x = 0.f, y = 0.f, z = 0.f;
 
 	extent = spawnAreaComponent->GetPlacementExtent().BoxExtent * spawnAreaComponent->GetComponentScale();
 	centre = spawnAreaComponent->GetComponentLocation();
 
-	//randomize Z position; make X/Y the edge of the component so the pellets spawn outside 
-	z = FMath::RandRange(-extent.Z, extent.Z);
-	x = spawnDirection[0].X * extent.X;
-	y = spawnDirection[0].Y * extent.Y;
+	//randomize X position; make Z the edge of the component so the pellets spawn outside 
+	x = FMath::RandRange(-extent.X, extent.X);
+	z = spawnDirection[0].Z * extent.Z; 
 	//apply component's rotation to our desired spawn point and add to centre point
 	spawnPoint = centre + spawnAreaComponent->GetComponentQuat().RotateVector(FVector(x, y, z));
 	//apply component's rotation + our random angle to get thrust angle
 	thrustRotation = FRotator(spawnAreaComponent->GetComponentQuat() * FQuat(FVector(0, 1, 0), FMath::DegreesToRadians(spawnAngle)));
 	thrustVector = thrustRotation.Vector();
+
+	//thrustVector = GetWorld()->GetFirstPlayerController()->GetControlledPawn()->GetActorLocation() - spawnPoint;
 
 	APellet *newPellet = GetWorld()->SpawnActor<APellet>(spawnUnits->GetDefaultObject()->GetClass(), spawnPoint, FRotator(0.f, 0.f, 0.f));
 	if (newPellet)

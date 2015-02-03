@@ -25,17 +25,71 @@ void APellet::PostInitializeComponents()
 		PawnMovement->MaxSpeed = moveSpeed;
 	}
 
-	USphereComponent *colisionComponent = (USphereComponent*)FindComponentByClass(USphereComponent::StaticClass());
+	colisionComponent = Cast<UPrimitiveComponent>(FindComponentByClass(USphereComponent::StaticClass()));
 	if (colisionComponent)
 	{
 		colisionComponent->OnComponentHit.AddDynamic(this, &APellet::OnColide);
-		colisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
-	spawnEnd = spawnDuration;
-	bIsSpawning = true;
-	fullSize = RootComponent->GetComponentScale();
-	RootComponent->SetWorldScale3D(FVector::ZeroVector);
+	spriteComponent = Cast<UPaperSpriteComponent>(FindComponentByClass(UPaperSpriteComponent::StaticClass()));
+
+	if (spawnAnimation)
+	{
+		animComponent = Cast<UPaperFlipbookComponent>(FindComponentByClass(UPaperFlipbookComponent::StaticClass()));
+	}
+}
+
+void APellet::BeginPlay()
+{
+	Super::BeginPlay();
+	BeginSpawn();
+}
+
+void APellet::BeginSpawn()
+{
+	if (spawnAnimation && animComponent)
+	{
+		PrepareAnimation(spawnAnimation, false);
+		animComponent->OnFinishedPlaying.AddDynamic(this, &APellet::FinishSpawn);
+		if (colisionComponent) colisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	else FinishSpawn();
+}
+
+void APellet::FinishSpawn()
+{
+	if (colisionComponent)
+	{
+		colisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+}
+
+
+void APellet::PrepareAnimation(UPaperFlipbook *animation, bool loop)
+{
+	if (animComponent)
+	{
+		animComponent->SetFlipbook(animation);
+		animComponent->SetVisibility(true);
+		animComponent->SetLooping(loop);
+		if (!loop)
+		{
+			animComponent->OnFinishedPlaying.AddDynamic(this, &APellet::FinishAnimation);
+		}
+		if (spriteComponent) spriteComponent->SetVisibility(false);
+	}
+}
+
+void APellet::FinishAnimation()
+{
+	if (animComponent)
+	{
+		animComponent->Stop();
+		animComponent->SetVisibility(false);
+		animComponent->SetFlipbook(nullptr);
+		animComponent->OnFinishedPlaying.Clear();
+		if (spriteComponent) spriteComponent->SetVisibility(true);
+	}
 }
 
 void APellet::SetupPlayerInputComponent(class UInputComponent* InputComponent)
@@ -73,29 +127,10 @@ void APellet::StopTrackingPointerTouch(ETouchIndex::Type finger, FVector positio
 
 void APellet::Tick(float deltaTime)
 {
-	if (spawnEnd > 0)
+	if (!IsSpawning())
 	{
-		spawnEnd -= deltaTime;
-		if (spawnEnd <= 0)
-		{
-			RootComponent->SetWorldScale3D(fullSize);
-			bIsSpawning = false;
-			USphereComponent *colisionComponent = (USphereComponent*)FindComponentByClass(USphereComponent::StaticClass());
-			if (colisionComponent)
-			{
-				colisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-			}
-		}
-		else
-		{
-			FVector scaleIncrement = fullSize / spawnDuration * deltaTime;
-			FVector currentScale = RootComponent->GetComponentScale();
-			RootComponent->SetWorldScale3D(FVector(FMath::Min(currentScale.X + scaleIncrement.X, fullSize.X),
-				FMath::Min(currentScale.Y + scaleIncrement.Y, fullSize.Y), 
-				FMath::Min(currentScale.Z + scaleIncrement.Z, fullSize.Z)));
-		}
+		ChaseTarget(deltaTime);
 	}
-	else ChaseTarget(deltaTime);
 }
 
 void APellet::ChaseTarget(float deltaTime)
@@ -103,14 +138,13 @@ void APellet::ChaseTarget(float deltaTime)
 	SetActorLocation(GetActorLocation()*FVector(0, 1, 1));
 	AddMovementInput(movementDirection, moveSpeed);
 }
-
+	
 void APellet::OnColide(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	if (!OtherActor->IsPendingKill() && OtherActor->GetActorClass() == GetActorClass())
 	{
 		APellet *otherPellet = (APellet*)OtherActor;
-		if (GetController()->IsA(APlayerController::StaticClass())
-			|| (otherPellet->GetController() && otherPellet->GetController()->IsA(APlayerController::StaticClass())))
+		if (GetController()->IsA(APlayerController::StaticClass()))
 		{
 			DetachFromControllerPendingDestroy();
 			Destroy();
@@ -118,7 +152,7 @@ void APellet::OnColide(class AActor* OtherActor, class UPrimitiveComponent* Othe
 			ADodgeGameMode *gameMode = Cast<ADodgeGameMode>(UGameplayStatics::GetGameMode(GetWorld()));
 			if (gameMode)
 			{
-				gameMode->ChangeGameState(EPlayState::EGameOver);
+				gameMode->ChangeGameState(EPlayState::EPlayerDead);
 			}
 		}
 		else
@@ -165,7 +199,7 @@ bool APellet::SetMovementDirection(const FVector &movementDirection)
 	this->movementDirection = movementDirection;
 	this->movementDirection.X = 0;
 	this->movementDirection.Normalize();
-	if (!bIsSpawning)
+	if (IsSpawning())
 	{
 		PawnMovement->ConsumeInputVector();
 		AddMovementInput(this->movementDirection, moveSpeed);
@@ -181,4 +215,16 @@ FVector& APellet::GetMovementDirection()
 bool APellet::CanChase()
 {
 	return bFollowPointer;
+}
+
+bool APellet::IsSpawning()
+{
+	if (spawnAnimation && animComponent)
+	{
+		if (animComponent->GetFlipbook() == spawnAnimation)
+		{
+			if(animComponent->IsPlaying()) return true;
+		}
+	}
+	return false;
 }

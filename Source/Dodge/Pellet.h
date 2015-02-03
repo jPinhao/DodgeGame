@@ -3,6 +3,9 @@
 #pragma once
 
 #include "GameFramework/Pawn.h"
+#include "DodgeUMG.h"
+#include "PaperSpriteComponent.h"
+#include "PaperFlipbookComponent.h"
 #include "Pellet.generated.h"
 
 /**
@@ -17,6 +20,7 @@ public:
 	APellet(const FObjectInitializer& ObjectInitializer);
 	/* after all game elements are created */
 	virtual void PostInitializeComponents() override;
+	virtual void BeginPlay() override;
 	void SetupPlayerInputComponent(class UInputComponent* InputComponent);
 	
 	void Tick(float deltaTime) override;
@@ -28,6 +32,7 @@ public:
 	bool SetMovementDirection(const FVector &movementDirection);
 	FVector& GetMovementDirection();
 	bool CanChase();
+	bool IsSpawning();
 
 	UFloatingPawnMovement *PawnMovement;
 	FVector touchPosition;
@@ -35,18 +40,30 @@ private:
 	UPROPERTY(EditAnywhere, Category = BehaviourProperties)
 	float moveSpeed;
 	FVector movementDirection;
-	UPROPERTY(EditAnywhere, Category = SpawnProperties)
-	float spawnDuration;
-	float spawnEnd;
-	bool bIsSpawning;
-	FVector fullSize;
 
+	//input 
 	bool bFollowPointer;
 	void StartTrackingPointer();
 	void StopTrackingPointer();
-
 	void StartTrackingPointerTouch(ETouchIndex::Type finger,FVector position);
 	void StopTrackingPointerTouch(ETouchIndex::Type finger, FVector position);
 
+	//spawning
+	UPROPERTY(EditAnywhere, Category = SpawnProperties)
+	UPaperFlipbook *spawnAnimation;
+	void BeginSpawn();
+	UFUNCTION()
+	void FinishSpawn();
+
+	//animation utilities
+	void PrepareAnimation(UPaperFlipbook *animation, bool loop);
+	UFUNCTION()
+	void FinishAnimation();
+	UPaperFlipbookComponent *animComponent;
+	UPaperSpriteComponent *spriteComponent;
+
+
+	//object utilities
 	FVector CalcBounceDirection(const FVector &myDirection, const FVector &hitNormal);
+	UPrimitiveComponent *colisionComponent;
 };
